@@ -48,6 +48,7 @@
             </textFill>
         </Label>
         <Pane HBox.hgrow="ALWAYS"/>
+        <Label fx:id="currentChatTitle" font="$x3" text="ok" textFill="$x4" HBox.hgrow="NEVER"/>
         <Label fx:id="currentOnlineCnt" font="$x3" text="Online: 1" textFill="$x4" HBox.hgrow="NEVER"/>
     </HBox>
 </VBox>
