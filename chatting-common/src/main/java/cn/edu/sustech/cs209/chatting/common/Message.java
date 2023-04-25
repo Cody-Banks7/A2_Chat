@@ -1,13 +1,9 @@
 package cn.edu.sustech.cs209.chatting.common;
 
-import java.util.Arrays;
-import java.util.List;
-
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.serializer.SerializerFeature;
-public class Message {
 
+public class Message {
     private final Long timestamp;
 
     private final String sentBy;
@@ -58,18 +54,18 @@ public class Message {
         return new Message(timestamp, sentBy, sendTo, data, msgType);
     }
     public enum MsgType {
-        SEND_PRIVATE_MESSAGE,
-        SEND_GROUP_MESSAGE,
-        REQUEST_PRIVATE_CHAT,
-        REQUEST_GROUP_CHAT,
-        REQUEST_TO_LEAVE,
-        REQUEST_TO_JOIN,
-        ERROR_DUPLICATE_USERNAME,
-        ALLOW_TO_JOIN,
-        ALLOW_TO_LEAVE,
-        UPDATE_CLIENT_LIST,
-        RESPONSE_PRIVATE_CHAT,
-        RESPONSE_GROUP_CHAT,
+        SINGLE_MESSAGE_SENDING,
+        MULTIPLE_MESSAGE_SENDING,
+        SINGLE_CHAT_DEMANDING,
+        MULTIPLE_CHAT_DEMANDING,
+        LEAVE_DEMAND,
+        JOIN_DEMAND,
+        USERNAME_DUPLICATE_ERROR,
+        JOIN_PERMISSION,
+        EXIT_PERMISSION,
+        USER_LIST_UPDATE,
+        SINGLE_CHAT_REPLY,
+        MULTIPLE_CHAT_REPLY,
         SYSTEM_INFO
     }
 }

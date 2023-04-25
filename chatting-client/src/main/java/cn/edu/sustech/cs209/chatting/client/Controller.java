@@ -1,9 +1,7 @@
 package cn.edu.sustech.cs209.chatting.client;
 
 import cn.edu.sustech.cs209.chatting.common.Message;
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.sun.scenario.effect.impl.sw.sse.SSEBlend_SRC_OUTPeer;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.fxml.Initializable;
@@ -14,8 +12,6 @@ import javafx.scene.control.*;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.HBox;
 import javafx.stage.Stage;
-import javafx.util.Callback;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -29,8 +25,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-
+import javafx.util.Callback;
 public class Controller implements Initializable {
 
     @FXML
@@ -44,7 +39,7 @@ public class Controller implements Initializable {
     String username;
     PrintWriter out;
     int chatType;
-    String chatTitle;
+    String currentChatObject;
     private List<String> clientsList = new ArrayList<>();
 
     public List<String> getClientsList() {
@@ -71,19 +66,19 @@ public class Controller implements Initializable {
             this.username = input.get();
             this.currentUsername.setText(String.format("Current User: %s", this.username));
             this.inputArea.setWrapText(true);
-            this.chatTitle = "";
+            this.currentChatObject = "";
             try {
                 Socket client = new Socket("localhost", Integer.parseInt("9876"));
                 BufferedReader in = new BufferedReader(new InputStreamReader(client.getInputStream()));
                 out = new PrintWriter(client.getOutputStream(), true);
-                Message requestJoinMsg = new Message(System.currentTimeMillis(), this.username, "SERVER","" ,Message.MsgType.REQUEST_TO_JOIN);
+                Message requestJoinMsg = new Message(System.currentTimeMillis(), this.username, "SERVER","" ,Message.MsgType.JOIN_DEMAND);
                 clientSendMsg(requestJoinMsg);
                 String message;
                 boolean judge = true;
                 while (true) {
                     message = in.readLine();
                     Message parsedMsg = Message.parseInfo(message);
-                    if (parsedMsg.getType() == Message.MsgType.ERROR_DUPLICATE_USERNAME) {
+                    if (parsedMsg.getType() == Message.MsgType.USERNAME_DUPLICATE_ERROR) {
                         System.out.println("Duplicate username, username " + this.username + "already exits");
                         judge = false;
                         in.close();
@@ -92,7 +87,7 @@ public class Controller implements Initializable {
                         Platform.exit();
                         break;
                     }
-                    else if (parsedMsg.getType() == Message.MsgType.ALLOW_TO_JOIN) {
+                    else if (parsedMsg.getType() == Message.MsgType.JOIN_PERMISSION) {
                         break;
                     }
                 }
@@ -111,7 +106,7 @@ public class Controller implements Initializable {
     }
 
     private void requestSingleChat(String title){
-        Message requestPrivateChatMessage = new Message(System.currentTimeMillis(), this.username, this.chatTitle, title,Message.MsgType.REQUEST_PRIVATE_CHAT);
+        Message requestPrivateChatMessage = new Message(System.currentTimeMillis(), this.username, this.currentChatObject, title,Message.MsgType.SINGLE_CHAT_DEMANDING);
         clientSendMsg(requestPrivateChatMessage);
     }
 
@@ -150,12 +145,12 @@ public class Controller implements Initializable {
         // TODO: otherwise, create a new chat item in the left panel, the title should be the selected user's name
         String selectedUser = user.get();
         if(selectedUser != null && !selectedUser.equals("")){
-            this.chatTitle = selectedUser;
+            this.currentChatObject = selectedUser;
             this.currentChatTitle.setText(selectedUser);
             this.chatType = 1;
             boolean chatItemExists = false;
             for (Object item : chatList.getItems()) {
-                if (item instanceof ChatBox && ((ChatBox) item).getTitle().getText().equals(selectedUser)) {
+                if (item instanceof ChatBox && ((ChatBox) item).getHeadline().getText().equals(selectedUser)) {
                     chatItemExists = true;
                     break;
                 }
@@ -165,59 +160,58 @@ public class Controller implements Initializable {
                 newChatItem.setOnMouseClicked(event -> {
                     System.out.println("click mouse");
                     Controller.this.chatType = 1;
-                    Controller.this.chatTitle = newChatItem.getTitle().getText();
-                    requestSingleChat(Controller.this.chatTitle);
+                    Controller.this.currentChatObject = newChatItem.getHeadline().getText();
+                    requestSingleChat(Controller.this.currentChatObject);
                 });
                 this.chatList.getItems().add(newChatItem);
             }
-            requestSingleChat(this.chatTitle);
+            requestSingleChat(this.currentChatObject);
         }
     }
 
 
     private void requestMultipleChat(String sendTo){
-        Message message = new Message(System.currentTimeMillis(), this.username, this.chatTitle, sendTo, Message.MsgType.REQUEST_GROUP_CHAT);
+        Message message = new Message(System.currentTimeMillis(), this.username, this.currentChatObject, sendTo, Message.MsgType.MULTIPLE_CHAT_DEMANDING);
         clientSendMsg(message);
     }
 
-    private String showGroupChatConfigDialog() {
-        Dialog<String> dialog = new Dialog<>();
-        dialog.setTitle("Create Group Chat");
-        dialog.setHeaderText("Please enter a group chat name and select users");
+    private String groupChatPopUp() {
+        Dialog<String> popUp = new Dialog<>();
+        popUp.setTitle("Select To Create Group Chat");
+        popUp.setHeaderText("Enter a group name and select users");
+        ButtonType createButtonType = new ButtonType("Yes", ButtonBar.ButtonData.OK_DONE);
+        popUp.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
 
-        ButtonType createButtonType = new ButtonType("确定", ButtonBar.ButtonData.OK_DONE);
-        dialog.getDialogPane().getButtonTypes().addAll(createButtonType, ButtonType.CANCEL);
-
-        TextField groupTitleField = new TextField();
+        TextField groupChatHeadline = new TextField();
 
         CheckBox[] userCheckBoxes = new CheckBox[this.clientsList.size()];
         for (int i = 0; i < this.clientsList.size(); i++) {
             userCheckBoxes[i] = new CheckBox(this.clientsList.get(i));
         }
         GridPane contentPane = new GridPane();
-        contentPane.setHgap(10);
-        contentPane.setVgap(10);
-        contentPane.setPadding(new Insets(20));
-        contentPane.addRow(0, new Label("Chat title:"), groupTitleField);
-        contentPane.addRow(2, new Label("Select users:"));
+        contentPane.setHgap(5);
+        contentPane.setVgap(5);
+        contentPane.setPadding(new Insets(10));
+        contentPane.addRow(0, new Label("HEADLINE:"), groupChatHeadline);
+        contentPane.addRow(3, new Label("Users"));
         for (int i = 0; i < userCheckBoxes.length; i++) {
-            contentPane.addRow(i + 3, userCheckBoxes[i]);
+            contentPane.addRow(i + 4, userCheckBoxes[i]);
         }
-        dialog.getDialogPane().setContent(contentPane);
+        popUp.getDialogPane().setContent(contentPane);
 
-        dialog.setResultConverter(dialogButton -> {
-            if (dialogButton == createButtonType && groupTitleField.getText() != null && !groupTitleField.getText().equals("")) {
-                StringBuilder selectedUsers = new StringBuilder(this.username);
+        popUp.setResultConverter(dialogButton -> {
+            if (groupChatHeadline.getText() != null && !groupChatHeadline.getText().equals("") && dialogButton == createButtonType) {
+                StringBuilder includeUsers = new StringBuilder(this.username);
                 for (CheckBox checkBox : userCheckBoxes) {
                     if (checkBox.isSelected()) {
-                        selectedUsers.append(",").append(checkBox.getText());
+                        includeUsers.append(",").append(checkBox.getText());
                     }
                 }
-                return selectedUsers + "@" + groupTitleField.getText();
+                return includeUsers + "@" + groupChatHeadline.getText();
             }
             return null;
         });
-        Optional<String> result = dialog.showAndWait();
+        Optional<String> result = popUp.showAndWait();
         return result.orElse(null);
     }
 
@@ -233,26 +227,26 @@ public class Controller implements Initializable {
      */
     @FXML
     public void createGroupChat() throws MalformedURLException {
-        String usersAndTitle = showGroupChatConfigDialog();
+        String usersAndTitle = groupChatPopUp();
         if (usersAndTitle != null) {
             String groupTitle = usersAndTitle.split("@")[1];
             String userListStr = usersAndTitle.split("@")[0];
-            this.chatTitle = groupTitle;
+            this.currentChatObject = groupTitle;
             this.chatType = 2;
-            this.currentChatTitle.setText(groupTitle + "(Group Chat)");
+            this.currentChatTitle.setText(groupTitle + "(MultiUserChat)");
             boolean chatItemExists = false;
             for (Object item : chatList.getItems()) {
-                if (item instanceof ChatBox && ((ChatBox) item).getTitle().getText().equals(groupTitle + "(Group Chat)")) {
+                if (item instanceof ChatBox && ((ChatBox) item).getHeadline().getText().equals(groupTitle + "(MultiUserChat)")) {
                     chatItemExists = true;
                     break;
                 }
             }
             if (!chatItemExists) {
-                ChatBox newChatItem = new ChatBox(groupTitle + "(Group Chat)", currentTime(),  2);
+                ChatBox newChatItem = new ChatBox(groupTitle + "(MultiUserChat)", currentTime(),  2);
                 newChatItem.setOnMouseClicked(event -> {
                     Controller.this.chatType = 2;
-                    Controller.this.chatTitle = newChatItem.getTitle().getText().replace("(Group Chat)", "");
-                    requestMultipleChat(Controller.this.chatTitle);
+                    Controller.this.currentChatObject = newChatItem.getHeadline().getText().replace("(MultiUserChat)", "");
+                    requestMultipleChat(Controller.this.currentChatObject);
                 });
                 this.chatList.getItems().add(newChatItem);
             }
@@ -272,12 +266,12 @@ public class Controller implements Initializable {
         String content = inputArea.getText();
         Message.MsgType type;
         if (this.chatType == 2){
-            type = Message.MsgType.SEND_GROUP_MESSAGE;
+            type = Message.MsgType.MULTIPLE_MESSAGE_SENDING;
         }else{
-            type = Message.MsgType.SEND_PRIVATE_MESSAGE;
+            type = Message.MsgType.SINGLE_MESSAGE_SENDING;
         }
         if (content.length() > 0){
-            Message msg = new Message(System.currentTimeMillis(), this.username, this.chatTitle, content, type);
+            Message msg = new Message(System.currentTimeMillis(), this.username, this.currentChatObject, content, type);
             clientSendMsg(msg);
             inputArea.setText("");
         }
@@ -330,7 +324,7 @@ public class Controller implements Initializable {
     }
 
     public void shutdown() {
-        Message leaveMessage = new Message(System.currentTimeMillis(),this.username, "SERVER",  "",Message.MsgType.REQUEST_TO_LEAVE);
+        Message leaveMessage = new Message(System.currentTimeMillis(),this.username, "SERVER",  "",Message.MsgType.LEAVE_DEMAND);
         clientSendMsg(leaveMessage);
     }
 
@@ -353,10 +347,10 @@ public class Controller implements Initializable {
                         break;
                     }
                     Message parsedMsg = Message.parseInfo(message);
-                    if (parsedMsg.getType()==Message.MsgType.ALLOW_TO_LEAVE) {
+                    if (parsedMsg.getType()==Message.MsgType.EXIT_PERMISSION) {
                         break;
                     }
-                    else if (parsedMsg.getType()==Message.MsgType.UPDATE_CLIENT_LIST) {
+                    else if (parsedMsg.getType()==Message.MsgType.USER_LIST_UPDATE) {
                         List<String> tmp = new ArrayList<>(Arrays.asList(parsedMsg.getData().split(",")));
                         int currentUserCnt = tmp.size();
                         Platform.runLater(() -> Controller.this.currentOnlineCnt.setText("Online: " + currentUserCnt));
@@ -366,16 +360,16 @@ public class Controller implements Initializable {
                             setClientList(usernameTmpList);
                         }
                     }
-                    else if (parsedMsg.getType()==Message.MsgType.RESPONSE_PRIVATE_CHAT) {
+                    else if (parsedMsg.getType()==Message.MsgType.SINGLE_CHAT_REPLY) {
                         String currentData = parsedMsg.getData();
                         List<Message> msgList = JSONObject.parseArray(currentData, Message.class);
                         String selectedUser;
-                        if(msgList.size() > 0 && msgList.get(0).getType()== Message.MsgType.SEND_PRIVATE_MESSAGE) {
+                        if(msgList.size() > 0 && msgList.get(0).getType()== Message.MsgType.SINGLE_MESSAGE_SENDING) {
                             selectedUser = msgList.get(0).getSentBy();
                             if (selectedUser != null && !selectedUser.equals("") && !selectedUser.equals(username)) {
                                 boolean chatItemExists = false;
                                 for (Object item : chatList.getItems()) {
-                                    if (item instanceof ChatBox && ((ChatBox) item).getTitle().getText().equals(selectedUser)) {
+                                    if (item instanceof ChatBox && ((ChatBox) item).getHeadline().getText().equals(selectedUser)) {
                                         chatItemExists = true;
                                         break;
                                     }
@@ -391,8 +385,8 @@ public class Controller implements Initializable {
                                         System.out.println("click mouse");
                                         Controller.this.chatType = 1;
 //                                        requestSingleChat(Controller.this.chatTitle);  // 加了会死循环，不加没法更新右边，先看看下面为什么没更新
-                                        Controller.this.chatTitle = newChatItem.getTitle().getText();
-                                        if (msgList.size() > 0 && chatCheck(Controller.this.username,Controller.this.chatTitle,msgList.get(0).getSendTo(),msgList.get(0).getSentBy())) {
+                                        Controller.this.currentChatObject = newChatItem.getHeadline().getText();
+                                        if (msgList.size() > 0 && chatCheck(Controller.this.username,Controller.this.currentChatObject,msgList.get(0).getSendTo(),msgList.get(0).getSentBy())) {
                                             Platform.runLater(() -> {
                                                 Controller.this.chatContentList.getItems().clear();
                                                 Controller.this.chatContentList.getItems().addAll(msgList);
@@ -407,7 +401,7 @@ public class Controller implements Initializable {
                             }
                         }
                         if (chatType==1) {
-                            if (msgList.size() > 0 && chatCheck(Controller.this.username,Controller.this.chatTitle,msgList.get(0).getSendTo(),msgList.get(0).getSentBy())) {
+                            if (msgList.size() > 0 && chatCheck(Controller.this.username,Controller.this.currentChatObject,msgList.get(0).getSendTo(),msgList.get(0).getSentBy())) {
                                 Platform.runLater(() -> {
                                     Controller.this.chatContentList.getItems().clear();
                                     Controller.this.chatContentList.getItems().addAll(msgList);
@@ -418,35 +412,35 @@ public class Controller implements Initializable {
                             }
                         }
                     }
-                    else if (parsedMsg.getType()==Message.MsgType.RESPONSE_GROUP_CHAT) {  //两个问题，能影响别人，切换信息更新不到位
+                    else if (parsedMsg.getType()==Message.MsgType.MULTIPLE_CHAT_REPLY) {  //两个问题，能影响别人，切换信息更新不到位
                         String tmp = parsedMsg.getData();
                         List<Message> msgList = JSONObject.parseArray(tmp, Message.class);
 
-                        if (msgList.size() > 0 && msgList.get(0).getType()== Message.MsgType.SEND_GROUP_MESSAGE) {
+                        if (msgList.size() > 0 && msgList.get(0).getType()== Message.MsgType.MULTIPLE_MESSAGE_SENDING) {
                             String groupTitle = msgList.get(0).getSendTo();
                             if(msgList.get(0).getSentBy().equals(username)||chatType==0){
-                                chatTitle = groupTitle;
+                                currentChatObject = groupTitle;
                                 chatType = 2;
-                                Platform.runLater(() -> currentChatTitle.setText(groupTitle + "(Group Chat)"));
+                                Platform.runLater(() -> currentChatTitle.setText(groupTitle + "(MultiUserChat)"));
                             }
                             boolean chatItemExists = false;
                             for (Object item : chatList.getItems()) {
-                                if (item instanceof ChatBox && ((ChatBox) item).getTitle().getText().equals(groupTitle + "(Group Chat)")) {
+                                if (item instanceof ChatBox && ((ChatBox) item).getHeadline().getText().equals(groupTitle + "(MultiUserChat)")) {
                                     chatItemExists = true;
                                     break;
                                 }
                             }
                             if (!chatItemExists) {
-                                ChatBox newChatItem = new ChatBox(groupTitle + "(Group Chat)", currentTime(),  2);
+                                ChatBox newChatItem = new ChatBox(groupTitle + "(MultiUserChat)", currentTime(),  2);
                                 newChatItem.setOnMouseClicked(event -> {
                                     Controller.this.chatType = 2;
-                                    Controller.this.chatTitle = newChatItem.getTitle().getText().replace("(Group Chat)", "");
+                                    Controller.this.currentChatObject = newChatItem.getHeadline().getText().replace("(MultiUserChat)", "");
 //                                    requestMultipleChat(Controller.this.chatTitle);
-                                    if (msgList.size() > 0 && Controller.this.chatTitle.equals(msgList.get(0).getSendTo())) {
+                                    if (msgList.size() > 0 && Controller.this.currentChatObject.equals(msgList.get(0).getSendTo())) {
                                         Platform.runLater(() -> {
                                             Controller.this.chatContentList.getItems().clear();
                                             Controller.this.chatContentList.getItems().addAll(msgList);
-                                            requestMultipleChat(Controller.this.chatTitle);
+                                            requestMultipleChat(Controller.this.currentChatObject);
                                         });
                                     }
                                 });
@@ -455,7 +449,7 @@ public class Controller implements Initializable {
                         }
 
                         if (chatType==2) {
-                            if (msgList.size() > 0 && Controller.this.chatTitle.equals(msgList.get(0).getSendTo()) ) {
+                            if (msgList.size() > 0 && Controller.this.currentChatObject.equals(msgList.get(0).getSendTo()) ) {
                                 Platform.runLater(() -> {
                                     Controller.this.chatContentList.getItems().clear();
                                     Controller.this.chatContentList.getItems().addAll(msgList);

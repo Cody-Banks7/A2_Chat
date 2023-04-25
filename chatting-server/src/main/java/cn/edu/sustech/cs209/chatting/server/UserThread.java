@@ -1,16 +1,14 @@
 package cn.edu.sustech.cs209.chatting.server;
-
 import cn.edu.sustech.cs209.chatting.common.Message;
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
-import com.alibaba.fastjson.serializer.SerializerFeature;
 import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.stream.Collectors;
 
-public class UserThread extends Thread{
+public class UserThread extends Thread
+{
     private Socket socket;
     private Server server;
     private BufferedReader input;
@@ -74,12 +72,12 @@ public class UserThread extends Thread{
 
     private void sendAllSingleMessage(Message msg, String key) {
         String msgList = JSONObject.toJSON(server.singleChatHistory.get(key)).toString();
-        Message sendByUpdate = new Message(System.currentTimeMillis(), "SERVER", msg.getSentBy(),msgList ,Message.MsgType.RESPONSE_PRIVATE_CHAT);
+        Message sendByUpdate = new Message(System.currentTimeMillis(), "SERVER", msg.getSentBy(),msgList ,Message.MsgType.SINGLE_CHAT_REPLY);
         this.serverSendMsg(JSONObject.toJSON(sendByUpdate).toString());
         for (UserThread user: server.userList) {
 //            System.out.println(user.getUserID());
             if(user.getUserID().equals(msg.getSendTo())){
-                Message sendToUpdate = new Message(System.currentTimeMillis(), "SERVER", msg.getSendTo(),msgList ,Message.MsgType.RESPONSE_PRIVATE_CHAT);
+                Message sendToUpdate = new Message(System.currentTimeMillis(), "SERVER", msg.getSendTo(),msgList ,Message.MsgType.SINGLE_CHAT_REPLY);
                 user.serverSendMsg(JSONObject.toJSON(sendToUpdate).toString());
                 break;
             }
@@ -91,7 +89,7 @@ public class UserThread extends Thread{
         ArrayList<String> memberList = server.multipleMemberList.get(key);
         for (UserThread user : server.userList) {
             if (memberList.contains(user.getUserID())) {
-                Message responseToMsgReceiver = new Message(System.currentTimeMillis(), "SERVER", user.getUserID(), msgList, Message.MsgType.RESPONSE_GROUP_CHAT);
+                Message responseToMsgReceiver = new Message(System.currentTimeMillis(), "SERVER", user.getUserID(), msgList, Message.MsgType.MULTIPLE_CHAT_REPLY);
                 user.serverSendMsg(JSONObject.toJSON(responseToMsgReceiver).toString());
             }
         }
@@ -116,30 +114,30 @@ public class UserThread extends Thread{
                 if(message == null){
                     break;
                 }else {
-                    if (message.equals(String.valueOf(Message.MsgType.REQUEST_TO_LEAVE))){
-                        serverSendMsg(String.valueOf(Message.MsgType.ALLOW_TO_LEAVE));
+                    if (message.equals(String.valueOf(Message.MsgType.LEAVE_DEMAND))){
+                        serverSendMsg(String.valueOf(Message.MsgType.EXIT_PERMISSION));
                         server.removeUser(this);
                         server.broadcast(Message.MsgType.SYSTEM_INFO, this.getUserID() + " left");
                         String usernameListStr = server.userList.stream().map(UserThread::getUserID).collect(Collectors.joining(","));
-                        server.broadcast(Message.MsgType.UPDATE_CLIENT_LIST, usernameListStr);
+                        server.broadcast(Message.MsgType.USER_LIST_UPDATE, usernameListStr);
                         break;
                     }
                     Message parsedMsg = Message.parseInfo(message);
-                    if (parsedMsg.getType() == Message.MsgType.REQUEST_PRIVATE_CHAT) {
+                    if (parsedMsg.getType() == Message.MsgType.SINGLE_CHAT_DEMANDING) {
                         System.out.println(parsedMsg.getSentBy()+parsedMsg.getSendTo());
-                        String key = createEntry(parsedMsg.getSentBy(),parsedMsg.getSendTo());
+                        String key = createEntry(parsedMsg.getSentBy(), parsedMsg.getSendTo());
                         if (!server.singleChatHistory.containsKey(key)) {
                             server.singleChatHistory.put(key, new ArrayList<>());
                         }
                         sendAllSingleMessage(parsedMsg, key);
-                    }else if (parsedMsg.getType() == Message.MsgType.SEND_PRIVATE_MESSAGE){
-                        String key = createEntry(parsedMsg.getSentBy(),parsedMsg.getSendTo());
+                    }else if (parsedMsg.getType() == Message.MsgType.SINGLE_MESSAGE_SENDING){
+                        String key = createEntry(parsedMsg.getSentBy(), parsedMsg.getSendTo());
                         if (!server.singleChatHistory.containsKey(key)) {
                             server.singleChatHistory.put(key, new ArrayList<>());
                         }
                         server.singleChatHistory.get(key).add(parsedMsg);
                         sendAllSingleMessage(parsedMsg, key);
-                    }else if (parsedMsg.getType() == Message.MsgType.REQUEST_GROUP_CHAT){
+                    }else if (parsedMsg.getType() == Message.MsgType.MULTIPLE_CHAT_DEMANDING){
                         String[] userArray = parsedMsg.getData().split("@")[0].split(",");
                         ArrayList<String> currentUserList = new ArrayList<>(Arrays.asList(userArray));
                         if (!server.multipleChatHistory.containsKey(parsedMsg.getSendTo())) {
@@ -147,7 +145,7 @@ public class UserThread extends Thread{
                             server.multipleMemberList.put(parsedMsg.getSendTo(), currentUserList);
                         }
                         sendAllMultipleMessage(parsedMsg.getSendTo());
-                    }else if (parsedMsg.getType() == Message.MsgType.SEND_GROUP_MESSAGE){
+                    }else if (parsedMsg.getType() == Message.MsgType.MULTIPLE_MESSAGE_SENDING){
                         String title = parsedMsg.getSendTo();
                         server.multipleChatHistory.get(title).add(parsedMsg);
                         sendAllMultipleMessage(parsedMsg.getSendTo());

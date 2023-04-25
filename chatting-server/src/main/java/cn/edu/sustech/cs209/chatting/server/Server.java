@@ -8,7 +8,6 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 public class Server {
@@ -32,18 +31,18 @@ public class Server {
                     }
                 }
                 if (!judge) {
-                    Message errorMsg = new Message(System.currentTimeMillis(), "SERVER", currentUser.getUserID(),"",Message.MsgType.ERROR_DUPLICATE_USERNAME);
+                    Message errorMsg = new Message(System.currentTimeMillis(), "SERVER", currentUser.getUserID(),"",Message.MsgType.USERNAME_DUPLICATE_ERROR);
                     currentUser.serverSendMsg(errorMsg.toString());
                     continue;
                 }
-                Message successMsg = new Message(System.currentTimeMillis(), "SERVER", currentUser.getUserID(), "", Message.MsgType.ALLOW_TO_JOIN);
+                Message successMsg = new Message(System.currentTimeMillis(), "SERVER", currentUser.getUserID(), "", Message.MsgType.JOIN_PERMISSION);
                 currentUser.serverSendMsg(JSONObject.toJSON(successMsg).toString());
                 userList.add(currentUser);
                 currentUser.start();
 
                 // 通知每个用户新增了client, 要求更新client列表
                 String userListPacket = userList.stream().map(UserThread::getUserID).collect(Collectors.joining(","));
-                broadcast(Message.MsgType.UPDATE_CLIENT_LIST, userListPacket);
+                broadcast(Message.MsgType.USER_LIST_UPDATE, userListPacket);
             }
         } catch (IOException e) {
             e.printStackTrace();
